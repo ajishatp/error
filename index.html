@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blood Bank Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f5;
+        }
+
+        .header {
+            background-color: #dc3545;
+            color: white;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .search-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .search-box {
+            padding: 0.8rem;
+            font-size: 1rem;
+            width: 200px;
+            margin-right: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .district-select {
+            padding: 0.8rem;
+            font-size: 1rem;
+            width: 200px;
+            margin-right: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .search-box:focus, .district-select:focus {
+            border-color: #dc3545;
+        }
+
+        .search-button {
+            padding: 0.8rem 2rem;
+            font-size: 1rem;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .search-button:hover {
+            background-color: #c82333;
+        }
+
+        #map {
+            height: 500px;
+            max-width: 1200px;
+            margin: 2rem auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        #detailsPage {
+            display: none;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .blood-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .blood-type-card {
+            padding: 1rem;
+            background-color: #f8d7da;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .back-button {
+            padding: 0.5rem 1rem;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+
+        .back-button:hover {
+            background-color: #5a6268;
+        }
+
+        .details-header {
+            color: #dc3545;
+            margin-bottom: 1rem;
+        }
+
+        .contact-info {
+            margin: 1rem 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Kerala Blood Bank Tracker</h1>
+    </header>
+
+    <main id="mainPage">
+        <div class="search-container">
+            <select id="district" class="district-select">
+                <option value="">All Districts</option>
+                <option value="Thiruvananthapuram">Thiruvananthapuram</option>
+                <option value="Kollam">Kollam</option>
+                <option value="Pathanamthitta">Pathanamthitta</option>
+                <option value="Alappuzha">Alappuzha</option>
+                <option value="Kottayam">Kottayam</option>
+                <option value="Idukki">Idukki</option>
+                <option value="Ernakulam">Ernakulam</option>
+                <option value="Thrissur">Thrissur</option>
+                <option value="Palakkad">Palakkad</option>
+                <option value="Malappuram">Malappuram</option>
+                <option value="Kozhikode">Kozhikode</option>
+                <option value="Wayanad">Wayanad</option>
+                <option value="Kannur">Kannur</option>
+                <option value="Kasaragod">Kasaragod</option>
+            </select>
+            <select id="bloodGroup" class="search-box">
+                <option value="">Select Blood Group</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+            </select>
+            <button onclick="searchBloodBanks()" class="search-button">Search</button>
+        </div>
+
+        <div id="map"></div>
+    </main>
+
+    <div id="detailsPage">
+        <button onclick="showMainPage()" class="back-button">← Back to Map</button>
+        <h2 id="bankName" class="details-header"></h2>
+        <div id="bankDetails" class="contact-info"></div>
+        <h3>Available Blood Types</h3>
+        <div id="bloodAvailability" class="blood-info"></div>
+    </div>
+
+    <script>
+        let map;
+        let markers = [];
+
+        // Expanded blood bank data for Kerala
+        const bloodBanks = [
+            {
+                id: 1,
+                name: "Medical College Hospital Blood Bank",
+                district: "Thiruvananthapuram",
+                location: [8.5241, 76.9366],
+                address: "Medical College Rd, Thiruvananthapuram, Kerala 695011",
+                contact: "+91 471-252-8386",
+                email: "mct.bloodbank@kerala.gov.in",
+                hours: "24/7",
+                availability: {
+                    "A+": 25, "B+": 18, "O+": 30, "AB+": 12,
+                    "A-": 8, "B-": 7, "O-": 15, "AB-": 5
+                }
+            },
+            {
+                id: 2,
+                name: "District Hospital Blood Bank",
+                district: "Ernakulam",
+                location: [9.9816, 76.2999],
+                address: "District Hospital Junction, Ernakulam, Kerala 682011",
+                contact: "+91 484-235-1234",
+                email: "dh.bloodbank@kerala.gov.in",
+                hours: "24/7",
+                availability: {
+                    "A+": 20, "B+": 15, "O+": 25, "AB+": 10,
+                    "A-": 6, "B-": 5, "O-": 12, "AB-": 4
+                }
+            },
+            {
+                id: 3,
+                name: "Calicut Medical College Blood Bank",
+                district: "Kozhikode",
+                location: [11.2726, 75.8367],
+                address: "Medical College Rd, Kozhikode, Kerala 673008",
+                contact: "+91 495-235-5867",
+                email: "clt.bloodbank@kerala.gov.in",
+                hours: "24/7",
+                availability: {
+                    "A+": 22, "B+": 16, "O+": 28, "AB+": 11,
+                    "A-": 7, "B-": 6, "O-": 14, "AB-": 4
+                }
+            },
+            {
+                id: 4,
+                name: "District Hospital Blood Bank",
+                district: "Kollam",
+                location: [8.8932, 76.6141],
+                address: "District Hospital, Kollam, Kerala 691001",
+                contact: "+91 474-274-2251",
+                email: "kollam.bloodbank@kerala.gov.in",
+                hours: "24/7",
+                availability: {
+                    "A+": 18, "B+": 14, "O+": 22, "AB+": 9,
+                    "A-": 5, "B-": 4, "O-": 10, "AB-": 3
+                }
+            },
+            {
+                id: 5,
+                name: "Kottayam Medical College Blood Bank",
+                district: "Kottayam",
+                location: [9.6013, 76.5213],
+                address: "Medical College, Kottayam, Kerala 686008",
+                contact: "+91 481-259-7284",
+                email: "ktm.bloodbank@kerala.gov.in",
+                hours: "24/7",
+                availability: {
+                    "A+": 21, "B+": 17, "O+": 26, "AB+": 10,
+                    "A-": 6, "B-": 5, "O-": 13, "AB-": 4
+                }
+            },
+            {
+                id: 6,
+                name: "Thrissur Medical College Blood Bank",
+                district: "Thrissur",
+                location: [10.5156, 76.2067],
+                address: "Medical College, Thrissur, Kerala 680596",
+                contact: "+91 487-220-7120",
+                email: "tsr.bloodbank@kerala.gov.in",
+                hours: "24/7",
+                availability: {
+                    "A+": 19, "B+": 15, "O+": 24, "AB+": 9,
+                    "A-": 5, "B-": 4, "O-": 11, "AB-": 3
+                }
+            }
+        ];
+
+        function initMap() {
+            // Center the map on Kerala's coordinates
+            map = L.map('map').setView([10.8505, 76.2711], 7);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Initial loading of all blood banks
+            showAllBloodBanks();
+        }
+
+        function showAllBloodBanks() {
+            clearMarkers();
+            bloodBanks.forEach(bank => addMarker(bank));
+            fitMapToBounds();
+        }
+
+        function clearMarkers() {
+            markers.forEach(marker => marker.remove());
+            markers = [];
+        }
+
+        function addMarker(bank) {
+            const marker = L.marker(bank.location)
+                .bindPopup(`
+                    <div style="text-align: center;">
+                        <h3 style="color: #dc3545; margin-bottom: 0.5rem;">${bank.name}</h3>
+                        <p style="margin-bottom: 0.5rem;">${bank.district} District</p>
+                        <button onclick="showDetails(${bank.id})" 
+                                style="padding: 0.5rem 1rem; background-color: #dc3545; color: white; 
+                                       border: none; border-radius: 4px; cursor: pointer;">
+                            View Details
+                        </button>
+                    </div>
+                `)
+                .addTo(map);
+            markers.push(marker);
+        }
+
+        function fitMapToBounds() {
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+
+        function searchBloodBanks() {
+            const bloodGroup = document.getElementById('bloodGroup').value;
+            const district = document.getElementById('district').value;
+            
+            clearMarkers();
+
+            const filteredBanks = bloodBanks.filter(bank => {
+                const matchesBloodGroup = bloodGroup === '' || 
+                    (bank.availability[bloodGroup] && bank.availability[bloodGroup] > 0);
+                const matchesDistrict = district === '' || bank.district === district;
+                return matchesBloodGroup && matchesDistrict;
+            });
+
+            filteredBanks.forEach(bank => addMarker(bank));
+            fitMapToBounds();
+        }
+
+        function showDetails(bankId) {
+            const bank = bloodBanks.find(b => b.id === bankId);
+            if (bank) {
+                document.getElementById('mainPage').style.display = 'none';
+                document.getElementById('detailsPage').style.display = 'block';
+                
+                document.getElementById('bankName').textContent = bank.name;
+                document.getElementById('bankDetails').innerHTML = `
+                    <p><strong>District:</strong> ${bank.district}</p>
+                    <p><strong>Address:</strong> ${bank.address}</p>
+                    <p><strong>Contact:</strong> ${bank.contact}</p>
+                    <p><strong>Email:</strong> ${bank.email}</p>
+                    <p><strong>Operating Hours:</strong> ${bank.hours}</p>
+                `;
+
+                const availabilityHTML = Object.entries(bank.availability)
+                    .map(([type, units]) => `
+                        <div class="blood-type-card">
+                            <h4>${type}</h4>
+                            <p>${units} units</p>
+                        </div>
+                    `).join('');
+                
+                document.getElementById('bloodAvailability').innerHTML = availabilityHTML;
+            }
+        }
+
+        function showMainPage() {
+            document.getElementById('mainPage').style.display = 'block';
+            document.getElementById('detailsPage').style.display = 'none';
+        }
+
+        // Initialize map when page loads
+        initMap();
+    </script>
+</body>
+</html>
